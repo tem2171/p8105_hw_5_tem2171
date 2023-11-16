@@ -1,0 +1,118 @@
+---
+title: "P8105_HW5_TEM2171"
+author: "Teresa Moore"
+date: "2023-11-15"
+output: github_document
+---
+```{r load_libraries}
+library(tidyverse)
+```
+
+# PROBLEM 2
+
+Create a tidy dataframe containing data from all participants, including the subject ID, arm, and observations over time:
+
+```{r setup, include=FALSE}
+all_participants_df <- 
+  tibble(
+    files = list.files("data"),
+    path = str_c("data/", files)
+  ) %>% 
+  mutate(data = map(path, read_csv)) %>% 
+  unnest()
+
+all_participants_tidy_df <- 
+  all_participants_df %>% 
+  mutate(
+    files = str_replace(files, ".csv", ""),
+    group = str_sub(files, 1, 3)
+  ) %>% 
+  pivot_longer(
+    cols = starts_with("week_"),
+    names_to = "week",
+    values_to = "outcome",
+    names_prefix = "week_"
+  ) %>% 
+  mutate(week = as.numeric(week)) %>% 
+  select(group, subj = files, week, outcome)
+```
+
+Make a spaghetti plot showing observations on each subject over time, and comment on differences between groups:
+
+```{r}
+all_participants_tidy_df |> 
+  ggplot(aes(x = week, y = outcome, group = subj, color = group)) + geom_path() + facet_grid(~group)
+```
+
+For the control arm, the outcomes on average stay the same while for the experimental arm, we see on average an increaase in the outcomes.
+
+#PROBLEM 3
+
+```{r}
+n <- 30
+sigma <- 5
+alpha <- 0.05
+num_simulations <- 5000
+```
+
+```{r}
+simulation_t_test = function(mu) {
+  simulation_data = tibble(
+    x = rnorm(n, mean = mu, sd = sigma),
+  )
+
+output = simulation_data |>
+  t.test() |>
+  broom::tidy() |>
+  select(estimate, p.value) |>
+  rename(mu_hat=estimate, pval=p.value)
+
+}
+```
+
+```{r}
+simulation_results = expand_grid(
+  mu_df = c(0, 1, 2, 3, 4, 5, 6),
+  iter = 1:5000
+) |>
+  mutate(
+    estimate = map(mu_df, simulation_t_test)
+  ) |>
+  unnest(estimate)
+```
+
+Make a plot showing the proportion of times the null was rejected (the power of the test) on the y axis and the true value of μ on the x axis. Describe the association between effect size and power
+
+```{r}
+simulation_results |>
+  group_by(mu_df) |>
+  summarize(
+    reject = sum(pval<alpha),
+    proportion = reject/num_simulations
+  ) |>
+  ggplot(aes(x=mu_df, y=proportion)) + geom_line()
+```
+As the true value of mu increases, the proportion of times the null was rehejected also increases. There is a higher rate of increase in proportion between mu values 1 and 3, before it levels out to 100% at mu= 4. 
+
+a plot showing the average estimate of μ̂ on the y axis and the true value of μ on the x axis. Make a second plot (or overlay on the first) the average estimate of μ̂ only in samples for which the null was rejected on the y axis and the true value of μ on the x axis: 
+
+```{r}
+true_df = simulation_results |>
+  group_by(mu_df) |>
+  summarize(
+    mean_mu = mean(mu_hat)
+  )
+
+rej_df = simulation_results |>
+  filter(pval < 0.05) |>
+  group_by(mu_df) |>
+  summarize(
+    mean_mu = mean(mu_hat)
+  )
+
+ggplot(true_df, aes(x=mu_df, y=mean_mu)) + 
+  geom_line() +
+  geom_line(data=rej_df, color="blue")
+```
+
+The sample average of μ̂ across tests for which the null is rejected is no approximately equal to the true value of μ for lower values of mu between 0-4. Above 4, it is approximately equal.
