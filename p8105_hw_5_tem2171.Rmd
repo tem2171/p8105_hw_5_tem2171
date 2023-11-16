@@ -4,7 +4,7 @@ author: "Teresa Moore"
 date: "2023-11-15"
 output: github_document
 ---
-```{r load_libraries}
+```{r}
 library(tidyverse)
 ```
 
@@ -12,7 +12,7 @@ library(tidyverse)
 
 Create a tidy dataframe containing data from all participants, including the subject ID, arm, and observations over time:
 
-```{r setup, include=FALSE}
+```{r}
 all_participants_df <- 
   tibble(
     files = list.files("data"),
@@ -71,11 +71,11 @@ output = simulation_data |>
 
 ```{r}
 simulation_results = expand_grid(
-  mu_df = c(0, 1, 2, 3, 4, 5, 6),
+  true_mu = c(0, 1, 2, 3, 4, 5, 6),
   iter = 1:num_simulations
 ) |>
   mutate(
-    estimate = map(mu_df, simulation_t_test)
+    estimate = map(true_mu, simulation_t_test)
   ) |>
   unnest(estimate)
 ```
@@ -84,33 +84,35 @@ Make a plot showing the proportion of times the null was rejected (the power of 
 
 ```{r}
 simulation_results |>
-  group_by(mu_df) |>
+  group_by(true_mu) |>
   summarize(
     proportion = sum(p.value<alpha)/num_simulations
   ) |>
-  ggplot(aes(x=mu_df, y=proportion)) + geom_line()
+  ggplot(aes(x=true_mu, y=proportion)) + geom_line()
 ```
-As the true value of mu increases, the proportion of times the null was rehejected also increases. There is a higher rate of increase in proportion between mu values 1 and 3, before it levels out to 100% at mu= 4. 
+As the true value of mu increases, the proportion of times the null was rejected, also known as the power, also increases. There is a higher rate of increase in proportion between mu values 1 and 3, before it levels out to 100% at mu= 4. 
 
 a plot showing the average estimate of μ̂ on the y axis and the true value of μ on the x axis. Make a second plot (or overlay on the first) the average estimate of μ̂ only in samples for which the null was rejected on the y axis and the true value of μ on the x axis: 
 
 ```{r}
-true_df = simulation_results |>
-  group_by(mu_df) |>
+all_samples_df = simulation_results |>
+  group_by(true_mu) |>
   summarize(
     mean_mu = mean(estimate)
   )
 
-rej_df = simulation_results |>
+rejected_null_df = simulation_results |>
   filter(p.value < alpha) |>
-  group_by(mu_df) |>
+  group_by(true_mu) |>
   summarize(
     mean_mu = mean(estimate)
   )
 
-ggplot(true_df, aes(x=mu_df, y=mean_mu)) + 
-  geom_line() +
-  geom_line(data=rej_df, color="green")
+ggplot() +
+  geom_line(data=all_samples_df, aes(x=true_mu, y=mean_mu, color="All Samples"), show.legend=TRUE) +
+  geom_line(data=rejected_null_df, aes(x=true_mu, y=mean_mu, color="Rejected Null"), show.legend=TRUE) +
+  labs(color="Legend") +
+  theme_minimal()
 ```
 
 The sample average of μ̂ across tests for which the null is rejected is no approximately equal to the true value of μ for lower values of mu between 0-4. Above 4, it is approximately equal.
